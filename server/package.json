@@ -1,0 +1,20 @@
+{
+	"name": "server",
+	"version": "1.0.0",
+	"description": "A worker role for our recipe creation",
+	"main": "server.js",
+	"type": "module",
+	"author": "Joshua Bekkerman, Vincent Cancelliere, Tristan Mikiewicz, Collin Smith",
+	"scripts": {
+		"start": "node server.js",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
+		"axios": "^1.13.2",
+		"express": "^4.21.2",
+		"express-openid-connect": "^2.19.3",
+		"redis": "^4.7.1",
+		"socket.io": "^4.8.1"
+	}
+}

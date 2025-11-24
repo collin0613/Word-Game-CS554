@@ -1,0 +1,12 @@
+# Root .gitignore file
+
+server/node_modules/
+*.env
+*.env.local
+server/.env
+client/.env
+logs/
+*.log
+docker-compose.override.yml
+.vscode/
+.idea/

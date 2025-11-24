@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: ../docker/server.Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./server/.env
+    depends_on:
+      - redis
+
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/client.Dockerfile
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./client/.env
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
