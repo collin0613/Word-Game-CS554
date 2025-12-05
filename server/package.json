@@ -1,7 +1,7 @@
 {
 	"name": "server",
 	"version": "1.0.0",
-	"description": "A worker role for our recipe creation",
+	"description": "Backend packages / dependencies for Word Game",
 	"main": "server.js",
 	"type": "module",
 	"author": "Joshua Bekkerman, Vincent Cancelliere, Tristan Mikiewicz, Collin Smith",
@@ -10,6 +10,7 @@
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"dependencies": {
+		"@auth0/auth0-spa-js": "^2.10.0",
 		"@google/generative-ai": "^0.24.1",
 		"axios": "^1.13.2",
 		"express": "^4.21.2",
