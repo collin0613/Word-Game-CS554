@@ -2,8 +2,8 @@ import { useNavigate } from "react-router-dom";
 // import { gameConfigData } from "../../../server/services/index.js";
 import ReactModal from 'react-modal';
 import React, { useState } from "react";
-import Alert from 'react-bootstrap/Alert';
-import Spinner from 'react-bootstrap/Spinner';
+import '../styles/App.css';
+
 
 ReactModal.setAppElement('#root'); // this was in lecture/lab7 code, is it necessary?
 const customStyles = {
@@ -23,10 +23,9 @@ const customStyles = {
 
 function Lobby() {
     const [showJoinRoomModal, setShowJoinRoomModal] = useState(false);
-    const [roomCode, setRoomCode] = useState('');
     const [errorMessage, setErrorMessage] = useState(''); // displayed on joinRoomModal if incorrect/nonexistent room code is submitted
-    const [joinRoomError, setJoinRoomError] = useState(false); // boolean determines to display error message or not
-    const [roomCodeInput, setRoomCodeInput] = useState(''); // input text on the modal
+    const [joinRoomError, setJoinRoomError] = useState(false); // boolean determines to display errorMessage or not
+    const [roomCodeInput, setRoomCodeInput] = useState(''); // input on the modal
 
     const navigate = useNavigate(); 
 
@@ -63,25 +62,25 @@ function Lobby() {
         }
     }
 
-    const handleJoinRoom = () => {
+    const handleJoinRoom = (roomCode) => {
     // TODO: create joinRoom function in server/services/gameConfig.js, which calls function to join a room/
     // It will determine if room code exists, if so then joins the lobby by routing to '/game/:id'
 
     // NOTE: we cannot just attempt to route to '/game/:id' and see if it exists, since that will be
-    //       the route for creating a new room with that random ID. we can check if we can connect to a
-    //       websocket room by that id, if fails, catch and render the error ON THE MODAL and erase input
+    //       the route for creating a new room with that random ID generated in gameConfig.createRoom(). 
+    //       we can check if we can connect to a websocket room by that id, if fails, catch and render the error ON THE MODAL and erase input
 
         try {
-            // call the gameConfig fucntion and process its output
+            if (roomCode.length !== 4) throw new Error(); // should never trigger
             // if no errors are caught from gameConfigData.joinRoom(roomCode), then continue on route to that room
 
             // const joinRoom = await gameConfigData.joinRoom(roomCode);
             // setJoinRoomError(false); 
             // setErrorMessage('');
             // setShowJoinRoomModal(false);
-            // navigate('/game/${roomCode}');       
-
-            navigate('/game/:id'); // delete this once above has been implemented, this is just for testing purposes 
+            // navigate('/game/${roomCode}');     
+            navigate (`../game/${roomCode}`);
+            // navigate('/game/:id'); // delete this once above has been implemented, this is just for testing purposes 
         } catch(e) {
             // if we catch error, render an error message ON THE MODAL
             setJoinRoomError(true);
@@ -98,27 +97,30 @@ function Lobby() {
     return (
         <div className="lobby">
             <h1 className='title'>Word Game Lobby</h1>
-            <ul className="btn-list">
+            <div className="btn-list">
                 <br />
                 <button onClick={(handleCreateRoom)}>Create Room</button>
                 <br />
                 <br />
                 <button onClick={(openJoinRoomModal)}>Join Room</button>
                 <br />
-
-                <ReactModal style={customStyles} isOpen={showJoinRoomModal} onRequestClose={(() => setShowJoinRoomModal(false))}>
-                    <h3>Join Room</h3>
-                    <p>Enter a four-letter room code:</p>
-                    <input value={roomCodeInput} maxLength={4} onChange={(input) => handleRoomCodeInput(input.target.value)} />
-                    <br />
-                    {joinRoomError && <Alert variant="danger">{errorMessage}</Alert>} 
-                    <br />
-                    <button className='btn' type='submit'/* <-- maybe not even necessary? */ disabled={roomCodeInput.length !== 4} onClick={() => { setRoomCode(roomCodeInput); handleJoinRoom(); }}>Join</button>
-                    <button className='btn' onClick={() => closeJoinRoomModal()}>Back</button>
-                </ReactModal>
                 
+            </div>
+
+            <ReactModal style={customStyles} isOpen={showJoinRoomModal} onRequestClose={(() => setShowJoinRoomModal(false))}>
+                <h3>Join Room</h3>
+                <p>Enter a four-letter room code:</p>
+                <input value={roomCodeInput} maxLength={4} onChange={(e) => handleRoomCodeInput(e.target.value)} />
                 <br />
-            </ul>
+                {joinRoomError && 
+                    <div className="error-box">{errorMessage}</div>
+                }
+                <br />
+                <button className='btn' disabled={roomCodeInput.length !== 4} onClick={() => handleJoinRoom(roomCodeInput)}>Join</button> 
+
+                <button className='btn' onClick={() => closeJoinRoomModal()}>Back</button>
+            </ReactModal>
+            
         </div>
     );
 }

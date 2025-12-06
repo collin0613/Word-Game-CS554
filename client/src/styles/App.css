@@ -116,3 +116,13 @@
   width: 100%;
   max-width: 200px;
 }
+
+.error-box {
+  background-color: #ffdddd;
+  border: 1px solid #cc0000;
+  padding: 10px 14px;
+  margin: 10px 0;
+  border-radius: 4px;
+  color: #800000;
+  font-weight: 600;
+}

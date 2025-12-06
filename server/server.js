@@ -16,7 +16,7 @@ app.use(express.json());
 configRoutes(app);
 
 app.listen(3000, async () => {
-  await client.connect();
+  await redisClient.connect();
   console.log("We've now got a server!");
   console.log('Your routes will be running on http://localhost:3000');
 });
