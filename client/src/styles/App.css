@@ -126,3 +126,35 @@
   color: #800000;
   font-weight: 600;
 }
+
+
+.guess-chat-container {
+  margin-top: 20px;
+  max-width: 400px;
+}
+
+.guess-chat-list {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #ffffff;
+}
+
+.guess-line {
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.guess-own {
+  font-weight: 600;
+}
+
+.guess-correct {
+  color: green;
+}
+
+.guess-incorrect {
+  color: #555;
+}
