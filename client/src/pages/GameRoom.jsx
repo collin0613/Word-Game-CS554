@@ -16,7 +16,7 @@ function GameRoom() {
   const { socket, status } = useSocket();
   const { user, isAuthenticated, isLoading } = useAuth0();
 
-  // pulls a reasonable player name, like nickmanemail or name(which collin aded) from the auth profile so we always have something to display
+  // pull a reasonable player name from auth
   const playerName = useMemo(() => {
     if (!user) return '';
     return (
@@ -79,27 +79,24 @@ function GameRoom() {
     };
   }, [socket, status, roomCode, playerName, isAuthenticated, isLoading]);
 
-  // host is whoever matches the hostId set by the server
+  // host is whoever matches the hostId
   const isHost = hostId && socket && socket.id === hostId;
 
-  // host only action that flips the server room into game mode
+  // host-only action to start the game
   const handleStartGame = () => {
-    // if socket is not ready, do nothing
     if (!socket || status !== 'connected') return;
-
-    // extra guard so a non-host cannot start even if the button shows incorrectly
     if (!isHost) return;
 
     socket.emit('startGame', { roomCode }, (res) => {
-      // server is the source of truth, but we can update ui immediately on success
-      if (res?.success) setGameStarted(true);
+      if (res?.success) {
+        setGameStarted(true);
+      }
     });
   };
 
-  // sends the user back to the lobby screen
   const navBack = () => navigate('/lobby');
 
-  // keep auth loading simple and obvious
+  // auth guards
   if (isLoading) return <p>Loading profile…</p>;
   if (!isAuthenticated) return <p>Please log in first.</p>;
 
@@ -122,7 +119,11 @@ function GameRoom() {
           </ul>
 
           {isHost ? (
-            <button className="start-game-button" onClick={handleStartGame}>
+            <button
+              disabled={players.length < 2}
+              className="start-game-button"
+              onClick={handleStartGame}
+            >
               Start Game
             </button>
           ) : (
@@ -130,7 +131,11 @@ function GameRoom() {
           )}
         </div>
       ) : (
-        <Game roomCode={roomCode} playerName={playerName} />
+        <Game
+          roomCode={roomCode}
+          playerName={playerName}
+          hostId={hostId}
+        />
       )}
 
       <button className="back-button" onClick={navBack}>

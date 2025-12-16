@@ -10,7 +10,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const WORDS = ['APPLE', 'BANANA', 'CHERRY', 'GRAPE', 'MANGO'];
 
 const rooms = new Map();
-const MAX_ROUNDS = 2;
+const MAX_ROUNDS = 3;
 
 /* =========================
    Redis leaderboard helpers
@@ -180,6 +180,8 @@ const normalizeName = (name, fallback) => {
   return trimmed.length ? trimmed : fallback;
 };
 
+
+// sends the latest room state to everyone in the room so all clients stay in sync
 const broadcastRoomUpdate = (io, roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return;
@@ -190,6 +192,7 @@ const broadcastRoomUpdate = (io, roomCode) => {
     players: room.players,
     gameStarted: !!room.gameStarted,
     round: room.round || 0,
+    // if round is undefined for some reason, we show 0 so clients do not render "undefined"
   });
 };
 
@@ -408,14 +411,17 @@ const initGameSocket = (io) => {
       }
 
       room.gameStarted = true;
-      room.round = 1;
-      room.roundActive = false;
+      room.round = 1; // previously deleted line
+      room.roomActive = false; // waiting on data 
+
+      console.log(`Game started in room ${code}, word: ${room.currentWord}`);
 
       broadcastRoomUpdate(io, code);
 
-      io.to(code).emit('gameStarted', {
+      // separate event so clients can run game-specific logic immediately
+      io.to(code).emit('gameStarted', { 
         roomCode: code,
-        round: room.round,
+        round: room.round, // previously deleted line
         maxRounds: room.maxRounds || MAX_ROUNDS,
       });
 
@@ -461,7 +467,11 @@ const initGameSocket = (io) => {
       }
 
       const cleanGuess = (guess || '').toUpperCase();
+      // correct approach for finding correct guess; expected target word will be hashed
       const isCorrect = await bcrypt.compare(cleanGuess, room.currentWord);
+
+
+      // playerName is saved on the socket when they join/create the room
       const playerName = socket.data?.playerName || 'Unknown';
 
       io.to(code).emit('guessPosted', {
@@ -560,7 +570,7 @@ const initGameSocket = (io) => {
         try {
           await persistMatchDeltasToMongo(room.matchDeltasByUserId, room.userNameByUserId);
         } catch (e) {
-          console.error('❌ CRITICAL: Failed to persist match stats to MongoDB:', e);
+          console.error('CRITICAL: Failed to persist match stats to MongoDB:', e);
         }
 
         // Get final leaderboards
@@ -593,8 +603,38 @@ const initGameSocket = (io) => {
       safeCallback(cb, { success: true, correct: true, gameOver: false });
     });
 
-    // FETCH RESULTS
-    socket.on('fetchResults', async ({ roomCode } = {}, cb) => {
+    // host provides new rounds data (word + hints) since only they will call the Gemini API
+    socket.on('newRoundData', ({ roomCode, word, hints } = {}, cb) => {
+      const code = roomCode?.toUpperCase();
+      const room = code ? rooms.get(code) : null;
+
+      if (!room) {
+        safeCallback(cb, { success: false, message: 'Room not found.' });
+        return;
+      }
+
+      // enforce host-only authority
+      if (room.hostId !== socket.id) {
+        safeCallback(cb, { success: false, message: 'Only host can send round data.' });
+        return;
+      }
+
+      // store authoritative round data on server
+      room.currentWord = word;
+      room.currentHints = hints;
+
+      // broadcast to all players (including host)
+      io.to(code).emit('roundData', {
+        word,
+        hints,
+        round: room.round
+      });
+
+      safeCallback(cb, { success: true });
+    });
+
+    // sends the current leaderboard back to a client so the results page can load on refresh
+    socket.on('fetchResults', ({ roomCode } = {}, cb) => {
       const code = roomCode?.toUpperCase();
       const room = code ? rooms.get(code) : null;
 
