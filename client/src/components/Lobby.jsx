@@ -44,6 +44,12 @@ function Lobby() {
     );
   }, [user]);
 
+  const playerId = useMemo(() => {
+    if (!user) return '';
+    return user.sub || '';
+  }, [user]);
+
+
   if (isLoading) return <p>Loading profile…</p>;
   if (!isAuthenticated) return <p>Please log in first.</p>;
 
@@ -54,7 +60,7 @@ function Lobby() {
       return;
     }
 
-    socket.emit('createRoom', { hostName: playerName }, (res) => {
+    socket.emit('createRoom', { hostName: playerName, playerId }, (res) => {
       // if something fails server side, show the message instead of silently doing nothing
       if (!res?.success) {
         setErrorMessage(res?.message || 'Could not create room');
@@ -82,7 +88,7 @@ function Lobby() {
       return;
     }
 
-    socket.emit('joinRoom', { roomCode, playerName }, (res) => {
+    socket.emit('joinRoom', { roomCode, playerName, playerId }, (res) => {
       // if the room does not exist or is full, show the server message in the modal
       if (!res?.success) {
         setJoinRoomError(true);

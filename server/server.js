@@ -5,6 +5,8 @@ import { Server } from 'socket.io';
 import cors from 'cors'
 import initgamesocket from './sockets/gameSocket.js';
 import constructorMethod from './routes/index.js';
+import { connectRedis } from './config/redis.js';
+await connectRedis();
 
 const app = express();
 app.use(cors({
