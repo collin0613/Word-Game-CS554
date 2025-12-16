@@ -1,28 +1,36 @@
-import redis from 'redis';
+// server/server.js (Resolved)
 import express from 'express';
-import configRoutes from './routes/index.js';
 import http from 'http';
 import { Server } from 'socket.io';
+import cors from 'cors'
+import initgamesocket from './sockets/gameSocket.js';
+import constructorMethod from './routes/index.js';
 
 const app = express();
-const redisClient = redis.createClient();
-
-const httpServer = http.createServer(app);
-
-const connectRedis = async () => {
-  if (!redisClient.isOpen) {
-    await redisClient.connect();
-  }
-}
-connectRedis();
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 
 app.use(express.json());
+constructorMethod(app);
 
-configRoutes(app);
+// check if server is running
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-app.listen(3000, async () => {
-  console.log("We've now got a server!");
-  console.log('Your routes will be running on http://localhost:3000');
+const httpserver = http.createServer(app);
+const io = new Server(httpserver, {
+  cors: {
+    origin: process.env.client_origin || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+  },
 });
 
-export default redisClient;
+//export default redisclient; 
+
+initgamesocket(io); 
+
+const port = process.env.port || 4000;
+httpserver.listen(port, () => {
+  console.log(`server listening on http://localhost:${port}`);
+}); 
