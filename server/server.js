@@ -1,25 +1,32 @@
 // server/server.js (Resolved)
 import express from 'express';
 import http from 'http';
-import { server } from 'socket.io';
-import initgamesocket from './sockets/gamesocket.js';
+import { Server } from 'socket.io';
+import cors from 'cors'
+import initgamesocket from './sockets/gameSocket.js';
+import constructorMethod from './routes/index.js';
 
 const app = express();
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 
 app.use(express.json());
+constructorMethod(app);
 
-// check if server is runnin
+// check if server is running
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-const httpserver = http.createserver(app);
-const io = new server(httpserver, {
+const httpserver = http.createServer(app);
+const io = new Server(httpserver, {
   cors: {
     origin: process.env.client_origin || 'http://localhost:5173',
-    methods: ['get', 'post'],
+    methods: ['GET', 'POST'],
   },
 });
 
-export default redisclient; 
+//export default redisclient; 
 
 initgamesocket(io); 
 

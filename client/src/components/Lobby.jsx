@@ -22,7 +22,7 @@ const customStyles = {
   },
 };
 
-// this is the landing screen after login where you either create a room or join one
+// landing screen after login where you create or join a room
 function Lobby() {
   const [showJoinRoomModal, setShowJoinRoomModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -33,8 +33,7 @@ function Lobby() {
   const { socket, status } = useSocket();
   const { user, isAuthenticated, isLoading } = useAuth0();
 
-  // figures out a friendly display name from the auth profile, same as in gamroom
-  // this keeps the game working even if some profile fields are missing
+  // consistent player name logic (same as GameRoom)
   const playerName = useMemo(() => {
     if (!user) return '';
     return (
@@ -46,15 +45,12 @@ function Lobby() {
   }, [user]);
 
   if (isLoading) return <p>Loading profile…</p>;
-
-  // do not allow lobby actions unless logged in
   if (!isAuthenticated) return <p>Please log in first.</p>;
 
-  // creates a room on the server and immediately navigates to the room page
+  // CREATE ROOM
   const handleCreateRoom = () => {
-    // the socket might still be connecting when the user clicks, so we guard this
     if (!socket || status !== 'connected') {
-      setErrorMessage('Connecting...');
+      setErrorMessage('Connecting to server…');
       return;
     }
 
@@ -65,26 +61,23 @@ function Lobby() {
         return;
       }
 
-      // server returns the actual room code, so we trust that and route to it
+      setErrorMessage('');
       navigate(`/game/${res.roomCode}`);
     });
   };
 
-  // keeps room codes clean and consistent by allowing only letters and forcing uppercase
+  // keep room codes clean: A–Z only, uppercase
   const handleRoomCodeInput = (input) => {
-    const allowedPattern = /^[A-Z]*$/;
-
-    // this blocks numbers, spaces, and symbols so users cannot type invalid codes
-    if (allowedPattern.test(input.toUpperCase())) {
-      setRoomCodeInput(input.toUpperCase());
+    const upper = input.toUpperCase();
+    if (/^[A-Z]*$/.test(upper)) {
+      setRoomCodeInput(upper);
     }
   };
 
-  // attempts to join a room and routes to the room page if it works
+  // JOIN ROOM
   const handleJoinRoom = (roomCode) => {
-    // same guard as create, because users will click fast
     if (!socket || status !== 'connected') {
-      setErrorMessage('Connecting...');
+      setErrorMessage('Connecting to server…');
       setJoinRoomError(true);
       return;
     }
@@ -97,12 +90,12 @@ function Lobby() {
         return;
       }
 
-      // clear errors and close the modal so the next open starts fresh
+      // success
       setJoinRoomError(false);
       setErrorMessage('');
       setShowJoinRoomModal(false);
+      setRoomCodeInput('');
 
-      // navigate using the server returned code (it will be uppercase and validated)
       navigate(`/game/${res.roomCode}`);
     });
   };
@@ -135,19 +128,27 @@ function Lobby() {
           onChange={(e) => handleRoomCodeInput(e.target.value)}
         />
 
-        {/* join errors show inside the modal so the user can fix the code right there */}
-        {joinRoomError && <div className="error-box">{errorMessage}</div>}
+        {joinRoomError && (
+          <div className="error-box">{errorMessage}</div>
+        )}
 
         <button
           className="btn"
-          // room codes are 4 letters, so we keep the button disabled until it is complete
           disabled={roomCodeInput.length !== 4}
           onClick={() => handleJoinRoom(roomCodeInput)}
         >
           Join
         </button>
 
-        <button className="btn" onClick={() => setShowJoinRoomModal(false)}>
+        <button
+          className="btn"
+          onClick={() => {
+            setShowJoinRoomModal(false);
+            setJoinRoomError(false);
+            setErrorMessage('');
+            setRoomCodeInput('');
+          }}
+        >
           Back
         </button>
       </ReactModal>

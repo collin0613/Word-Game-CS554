@@ -2,11 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Timer from '../components/Timer';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../services/SocketContext.jsx';
+import axios from 'axios';
+import bcrypt from 'bcryptjs';
+import HintBox from './HintBox.jsx';
 
 // this is the main gameplay screen for a room
 // it shows the timer, lets players submit guesses, and renders a live feed of all guesses
-function Game({ roomCode, playerName }) {
-  const [isRunning, setIsRunning] = useState(true);
+function Game({ roomCode, playerName, hostId }) {
+  const [isRunning, setIsRunning] = useState(false);
+  const [roundReady, setRoundReady] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [roundCount, setRoundCount] = useState(1);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -21,16 +25,23 @@ function Game({ roomCode, playerName }) {
   const [guesses, setGuesses] = useState([]);
   const chatEndRef = useRef(null);
 
+  const [targetWord, setTargetWord] = useState(null);
+  const [allHints, setAllHints] = useState([]);
+  const [hintIndex, setHintIndex] = useState(0);
+  const hasFetchedRoundDataRef = useRef(false);
+
   const { socket, status } = useSocket();
   const navigate = useNavigate();
 
   // only allow letters so guesses look clean and match how the server compares words
-  const allowedPattern = /^[A-Z]*$/;
+  // also allows spaces between words
+  const allowedPattern = /^[A-Z ]*$/;
 
   // keeps the input uppercase and blocks any characters we do not want to accept
   const handleGuessInput = (input) => {
     const upper = (input || '').toUpperCase();
-    if (allowedPattern.test(upper)) setGuessInput(upper);
+    const sanitized = upper.replace(/[^A-Z ]/g, '');
+    setGuessInput(sanitized);
   };
 
   // shows the winner message and pauses the round so everyone sees the result
@@ -39,7 +50,6 @@ function Game({ roomCode, playerName }) {
     setRoundOver(true);
     setCountdown(5);
 
-    // if the client did not send a valid time, show a question mark instead of crashing the message
     const timeText =
       timeUsed === null || timeUsed === undefined ? '?' : String(timeUsed);
 
@@ -54,37 +64,99 @@ function Game({ roomCode, playerName }) {
     setBannerMessage('');
     setShowBanner(false);
 
-    // use the callback form so we never depend on a stale state value
     setRoundCount((prev) => prev + 1);
     setResetSignal((prev) => prev + 1);
+    setRoundReady(false);
 
-    setIsRunning(true);
+    setHintIndex(0);
+    setAllHints([]);
+    setTargetWord(null);
+    hasFetchedRoundDataRef.current = false;
+
+    setIsRunning(false);
     setRoundOver(false);
   }, []);
 
-  // sends the guess to the server and clears the input locally right away
+  // host only fetches new word and hints from the server and emits to all clients
+  const requestNewRound = async () => {
+    if (!socket || socket.id !== hostId) return;
+    if (hasFetchedRoundDataRef.current) return;
+
+    hasFetchedRoundDataRef.current = true;
+
+    try {
+      const { data } = await axios.get('http://localhost:4000/api');
+
+      socket.emit(
+        'newRoundData',
+        {
+          roomCode,
+          word: data.word,
+          hints: data.hints,
+        },
+        (res) => {
+          if (!res?.success) {
+            console.warn(res?.message);
+          }
+        }
+      );
+    } catch (err) {
+      console.error('Failed to fetch round data:', err);
+    }
+  };
+
+  // triggers first round
+  useEffect(() => {
+    if (!socket || status !== 'connected') return;
+    if (!hostId) return;
+    if (socket.id !== hostId) return;
+
+    requestNewRound();
+  }, [status, hostId]);
+
+  // all clients receive authoritative round data
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRoundData = ({ word, hints }) => {
+      setTargetWord(word);
+      setAllHints(hints);
+      setHintIndex(0);
+      setRoundReady(true);
+      setIsRunning(true);
+    };
+
+    socket.on('roundData', handleRoundData);
+    return () => socket.off('roundData', handleRoundData);
+  }, [socket]);
+
+  // displays hints based on the hintIndex state
+  useEffect(() => {
+    if (!allHints.length) return;
+
+    const t1 = setTimeout(() => setHintIndex(1), 10000);
+    const t2 = setTimeout(() => setHintIndex(2), 20000);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [allHints]);
+
+  // sends the guess to the server
   const handleGuess = () => {
     const guess = guessInput.trim().toUpperCase();
-
-    // do not spam empty guesses
     if (!guess) return;
 
-    // if the socket is not ready, just bail  
-    if (!socket || status !== 'connected' || !roomCode) {
-      console.warn('Not connected; cannot submit guess.');
-      return;
-    }
+    if (!socket || status !== 'connected' || !roomCode) return;
 
     const timeUsed = elapsedTime;
-
-    // clear the input immediately so the ui feels responsive
     setGuessInput('');
 
     socket.emit(
       'submitGuess',
       { roomCode, guess, elapsedTime: timeUsed },
       (res) => {
-        // the server sends an ack so we can log issues without relying on extra events
         if (!res?.success) {
           console.error('Guess submission failed:', res?.message);
         }
@@ -92,13 +164,11 @@ function Game({ roomCode, playerName }) {
     );
   };
 
-  // listens for every guess so we can render the live feed
+  // listens for every guess
   useEffect(() => {
-    // if the socket is not available yet, do nothing
     if (!socket) return;
 
     const handleGuessPosted = (data) => {
-      // append to the end so the feed stays in order
       setGuesses((prev) => [...prev, data]);
     };
 
@@ -138,76 +208,83 @@ function Game({ roomCode, playerName }) {
     return () => socket.off('gameOver', handleGameOver);
   }, [socket, navigate, roomCode]);
 
-  // runs the between round countdown and then triggers the next round when it hits zero
+  // countdown between rounds
   useEffect(() => {
-    // countdown is null when no countdown is active
     if (countdown === null) return;
 
-    // once we hit zero, we reset and start the new round
     if (countdown === 0) {
       setCountdown(null);
       startNewRound();
+      if (socket && socket.id === hostId) requestNewRound();
       return;
     }
 
     const t = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
     return () => clearTimeout(t);
-  }, [countdown, startNewRound]);
+  }, [countdown, startNewRound, socket, hostId]);
 
-  // keeps the guess feed scrolled to the newest entry
+  // auto-scroll guesses
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [guesses]);
 
-  // used for styling your own guesses differently
-  const isOwnGuess = (g) => socket && g.playerId && g.playerId === socket.id;
+  const isOwnGuess = (g) => socket && g.playerId === socket.id;
+  const visibleHints = allHints.slice(0, hintIndex + 1);
 
-  return (
+  return !roundReady ? (
+    <div>
+      <p className="loading-text">Preparing next round…</p>
+    </div>
+  ) : (
     <>
       <p>Game room {roomCode}</p>
       <p>Round {roundCount}</p>
 
-      <div>
-        <Timer
-          isRunning={isRunning}
-          resetSignal={resetSignal}
-          onTick={(seconds) => setElapsedTime(seconds)}
-        />
+      <Timer
+        isRunning={isRunning && roundReady}
+        resetSignal={resetSignal}
+        onTick={(seconds) => setElapsedTime(seconds)}
+      />
 
-        <label className="input-label">Guess the Word: </label>
-        <input
-          className="guess-input"
-          value={guessInput}
-          onChange={(e) => handleGuessInput(e.target.value)}
-          //freeze input when round is over cuz tristan said we need to wait for api or something
-          disabled={roundOver}
-        />
+      <HintBox visibleHints={visibleHints} />
 
-        <button onClick={handleGuess} disabled={roundOver || !guessInput}>
-          Submit Guess
-        </button>
+      <label className="input-label">Guess the Word:</label>
+      <input
+        className="guess-input"
+        value={guessInput}
+        onChange={(e) => handleGuessInput(e.target.value)}
+        disabled={roundOver || !roundReady}
+      />
 
-        {showBanner && <p>{bannerMessage}</p>}
+      <button
+        onClick={handleGuess}
+        disabled={roundOver || !guessInput || !roundReady}
+      >
+        Submit Guess
+      </button>
 
-        {countdown !== null && (
-          <p className="countdown-text">Next round begins in {countdown}...</p>
-        )}
+      {showBanner && <p>{bannerMessage}</p>}
 
-        <div className="guess-chat-container">
-          <h3>Guesses</h3>
-          <div className="guess-chat-list">
-            {guesses.map((g, idx) => (
-              <div
-                key={g.timestamp || idx}
-                className={`guess-line ${
-                  g.correct ? 'guess-correct' : 'guess-incorrect'
-                } ${isOwnGuess(g) ? 'guess-own' : ''}`}
-              >
-                <strong>{g.playerName}:</strong> {g.guess}
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
+      {countdown !== null && (
+        <p className="countdown-text">
+          Next round begins in {countdown}...
+        </p>
+      )}
+
+      <div className="guess-chat-container">
+        <h3>Guesses</h3>
+        <div className="guess-chat-list">
+          {guesses.map((g, idx) => (
+            <div
+              key={g.timestamp || idx}
+              className={`guess-line ${
+                g.correct ? 'guess-correct' : 'guess-incorrect'
+              } ${isOwnGuess(g) ? 'guess-own' : ''}`}
+            >
+              <strong>{g.playerName}:</strong> {g.guess}
+            </div>
+          ))}
+          <div ref={chatEndRef} />
         </div>
       </div>
     </>

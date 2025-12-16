@@ -1,3 +1,5 @@
+import bcrypt from 'bcryptjs';
+
 const ROOM_CODE_LENGTH = 4;
 const MAX_PLAYERS_PER_ROOM = 4;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -6,7 +8,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const WORDS = ['APPLE', 'BANANA', 'CHERRY', 'GRAPE', 'MANGO'];
 
 const rooms = new Map();
-const MAX_ROUNDS = 2;
+const MAX_ROUNDS = 3;
 
 // builds a sorted leaderboard from the room scores so the frontend can render results easily
 const buildScoreboard = (room) => {
@@ -85,11 +87,6 @@ const normalizeName = (name, fallback) => {
   return trimmed.length ? trimmed : fallback;
 };
 
-// picks a random word for the current round
-const pickRandomWord = () => {
-  // this can repeat words, which is fine for now since we have a tiny list
-  return WORDS[Math.floor(Math.random() * WORDS.length)];
-};
 
 // sends the latest room state to everyone in the room so all clients stay in sync
 const broadcastRoomUpdate = (io, roomCode) => {
@@ -104,7 +101,7 @@ const broadcastRoomUpdate = (io, roomCode) => {
     hostId: room.hostId,
     gameStarted: !!room.gameStarted,
     // if round is undefined for some reason, we show 0 so clients do not render "undefined"
-    round: room.round || 0,
+    round: room.round
   });
 };
 
@@ -156,7 +153,8 @@ const initGameSocket = (io) => {
         hostId: socket.id,
         players: [player],
         gameStarted: false,
-        round: 0,
+        round: null,
+        roundActive: false, // new addition: round is not active until the axios api call is done processing and socket.emitting data
         maxRounds: MAX_ROUNDS,
         currentWord: null,
         scores: {},
@@ -293,8 +291,8 @@ const initGameSocket = (io) => {
 
       // initialize game state for round 1
       room.gameStarted = true;
-      room.round = 1;
-      room.currentWord = pickRandomWord();
+      room.round = 1; // previously deleted line
+      room.roomActive = false; // waiting on data 
 
       console.log(`Game started in room ${code}, word: ${room.currentWord}`);
 
@@ -302,9 +300,9 @@ const initGameSocket = (io) => {
       broadcastRoomUpdate(io, code);
 
       // separate event so clients can run game-specific logic immediately
-      io.to(code).emit('gameStarted', {
+      io.to(code).emit('gameStarted', { 
         roomCode: code,
-        round: room.round,
+        round: room.round, // previously deleted line
         maxRounds: room.maxRounds || MAX_ROUNDS,
       });
 
@@ -312,7 +310,7 @@ const initGameSocket = (io) => {
     });
 
     // SUBMIT GUESS (shared game logic and chat)
-    socket.on('submitGuess', ({ roomCode, guess, elapsedTime } = {}, cb) => {
+    socket.on('submitGuess', async ({ roomCode, guess, elapsedTime } = {}, cb) => {
       const code = roomCode?.toUpperCase();
       const room = code ? rooms.get(code) : null;
 
@@ -328,7 +326,9 @@ const initGameSocket = (io) => {
 
       // normalize input so comparison is case-insensitive and consistent
       const cleanGuess = (guess || '').toUpperCase();
-      const isCorrect = cleanGuess === room.currentWord;
+      // correct approach for finding correct guess; expected target word will be hashed
+      const isCorrect = await bcrypt.compare(cleanGuess, room.currentWord);
+
 
       // playerName is saved on the socket when they join/create the room
       const playerName = socket.data?.playerName || 'Unknown';
@@ -398,9 +398,9 @@ const initGameSocket = (io) => {
         // otherwise move to the next round and pick a new word
         // the frontend countdown is just a UI delay; the server state moves immediately
         room.round += 1;
-        room.currentWord = pickRandomWord();
 
         // broadcast updated round number so clients stay consistent
+        // word + hints will be provided by host via newRoundData
         broadcastRoomUpdate(io, code);
 
         safeCallback(cb, { success: true, correct: true, gameOver: false });
@@ -408,6 +408,36 @@ const initGameSocket = (io) => {
         // incorrect guess does not change room state, it only updates the guess feed
         safeCallback(cb, { success: true, correct: false });
       }
+    });
+
+    // host provides new rounds data (word + hints) since only they will call the Gemini API
+    socket.on('newRoundData', ({ roomCode, word, hints } = {}, cb) => {
+      const code = roomCode?.toUpperCase();
+      const room = code ? rooms.get(code) : null;
+
+      if (!room) {
+        safeCallback(cb, { success: false, message: 'Room not found.' });
+        return;
+      }
+
+      // enforce host-only authority
+      if (room.hostId !== socket.id) {
+        safeCallback(cb, { success: false, message: 'Only host can send round data.' });
+        return;
+      }
+
+      // store authoritative round data on server
+      room.currentWord = word;
+      room.currentHints = hints;
+
+      // broadcast to all players (including host)
+      io.to(code).emit('roundData', {
+        word,
+        hints,
+        round: room.round
+      });
+
+      safeCallback(cb, { success: true });
     });
 
     // sends the current leaderboard back to a client so the results page can load on refresh
