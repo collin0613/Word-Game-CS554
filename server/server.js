@@ -2,7 +2,11 @@
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
-import initGameSocket from './sockets/gameSocket.js';
+import cors from 'cors'
+import initgamesocket from './sockets/gameSocket.js';
+import constructorMethod from './routes/index.js';
+import { connectRedis } from './config/redis.js';
+await connectRedis();
 
 const app = express();
 
@@ -19,7 +23,7 @@ const io = new Server(httpServer, {
   },
 });
 
-initGameSocket(io);
+initgamesocket(io); 
 
 const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => {
