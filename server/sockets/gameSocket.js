@@ -12,9 +12,6 @@ const WORDS = ['APPLE', 'BANANA', 'CHERRY', 'GRAPE', 'MANGO'];
 const rooms = new Map();
 const MAX_ROUNDS = 3;
 
-/* =========================
-   Redis leaderboard helpers
-   ========================= */
 
 const leaderboardKey = (roomCode) => `leaderboard:${roomCode}`;
 
