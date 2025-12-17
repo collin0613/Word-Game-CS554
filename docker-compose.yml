@@ -32,7 +32,7 @@ services:
       NODE_ENV: production
       MONGO_URI: mongodb://mongodb:27017/Word-Game-CS554
       REDIS_URL: redis://redis:6379
-      # Add other necessary environment variables (e.g., Auth0, API keys)
+      
     depends_on:
       - mongodb
       - redis
