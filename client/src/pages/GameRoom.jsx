@@ -104,7 +104,7 @@ function GameRoom() {
     <>
       {!gameStarted ? (
         <div>
-          <p>Welcome to the game room.</p>
+          <p className="text-4xl">Welcome to the game room.</p>
           <p>
             Room Code: <strong>{roomCode}</strong>
           </p>

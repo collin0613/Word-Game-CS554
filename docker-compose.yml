@@ -1,27 +1,61 @@
-version: "3.8"
+version: '3.8'
 
 services:
+
+  # 1. MONGODB DATABASE SERVICE
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db # Persist data outside the container
+    restart: always
+
+  # 2. REDIS CACHE SERVICE
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 3. BACKEND SERVER SERVICE
   server:
     build:
       context: ./server
-      dockerfile: ../docker/server.Dockerfile
+      dockerfile: Dockerfile
+    container_name: wordgame_server
     ports:
-      - "5000:5000"
-    env_file:
-      - ./server/.env
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongodb:27017/Word-Game-CS554
+      REDIS_URL: redis://redis:6379
+      # Add other necessary environment variables (e.g., Auth0, API keys)
+      GEMINI_API_KEY: "AIzaSyAsEcPo1LUrQDeFGkavGxKWUoSD7cZPDEo"
+      VITE_AUTH0_DOMAIN: dev-5155uqioibwkxl82.us.auth0.com
+      VITE_AUTH0_CLIENT_ID: OEAM37wnyjXsfcqrnXAYb4fS1bleTBh3
     depends_on:
+      - mongodb
       - redis
+    # The container watches file changes during development (optional, but useful)
+    # volumes: 
+    #   - ./server:/usr/src/app
+    restart: always
 
+  # 4. FRONTEND CLIENT SERVICE
   client:
     build:
       context: ./client
-      dockerfile: ../docker/client.Dockerfile
+      dockerfile: Dockerfile
+    container_name: wordgame_client
     ports:
-      - "5173:5173"
-    env_file:
-      - ./client/.env
+      - "5173:80" # Map container port 80 (Nginx) to host port 5173 (Vite default)
+    depends_on:
+      - server
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+volumes:
+  mongodb_data:

@@ -236,59 +236,64 @@ function Game({ roomCode, playerName, hostId }) {
       <p className="loading-text">Preparing next round…</p>
     </div>
   ) : (
-    <>
-      <p>Game room {roomCode}</p>
-      <p>Round {roundCount}</p>
+    <div className="mx-auto w-full max-w-3xl px-4">
+      <div className="mx-auto max-w-3xl">
+        <p className="text-center">Game room {roomCode}</p>
+        <p className="text-center">Round {roundCount}</p>
 
-      <Timer
-        isRunning={isRunning && roundReady}
-        resetSignal={resetSignal}
-        onTick={(seconds) => setElapsedTime(seconds)}
-      />
+        <Timer
+          isRunning={isRunning && roundReady}
+          resetSignal={resetSignal}
+          onTick={(seconds) => setElapsedTime(seconds)}
+        />
 
-      <HintBox visibleHints={visibleHints} />
+        <HintBox visibleHints={visibleHints} />
 
-      <label className="input-label">Guess the Word:</label>
-      <input
-        className="guess-input"
-        value={guessInput}
-        onChange={(e) => handleGuessInput(e.target.value)}
-        disabled={roundOver || !roundReady}
-      />
+        <div className="mx-auto max-w-3xl mt-4 grid w-full grid-cols-[auto_1fr_auto] items-center gap-4">
+          <label className="input-label">Guess the Word:</label>
 
-      <button
-        onClick={handleGuess}
-        disabled={roundOver || !guessInput || !roundReady}
-      >
-        Submit Guess
-      </button>
+          <input
+            className="guess-input w-full"
+            value={guessInput}
+            onChange={(e) => handleGuessInput(e.target.value)}
+            disabled={roundOver || !roundReady}
+          />
 
-      {showBanner && <p>{bannerMessage}</p>}
+          <button
+            onClick={handleGuess}
+            disabled={roundOver || !guessInput || !roundReady}
+          >
+            Submit Guess
+          </button>
+        </div>
 
-      {countdown !== null && (
-        <p className="countdown-text">
-          Next round begins in {countdown}...
-        </p>
-      )}
+        {showBanner && <p className="mt-4 text-center">{bannerMessage}</p>}
 
-      <div className="guess-chat-container">
-        <h3>Guesses</h3>
-        <div className="guess-chat-list">
-          {guesses.map((g, idx) => (
-            <div
-              key={g.timestamp || idx}
-              className={`guess-line ${
-                g.correct ? 'guess-correct' : 'guess-incorrect'
-              } ${isOwnGuess(g) ? 'guess-own' : ''}`}
-            >
-              <strong>{g.playerName}:</strong> {g.guess}
-            </div>
-          ))}
-          <div ref={chatEndRef} />
+        {countdown !== null && (
+          <p className="countdown-text text-center">
+            Next round begins in {countdown}...
+          </p>
+        )}
+
+        <div className="mx-auto max-w-3xl guess-chat-container mt-6 w-full">
+          <h3 className="text-center">Guesses</h3>
+          <div className="guess-chat-list">
+            {guesses.map((g, idx) => (
+              <div
+                key={g.timestamp || idx}
+                className={`guess-line ${
+                  g.correct ? 'guess-correct' : 'guess-incorrect'
+                } ${isOwnGuess(g) ? 'guess-own' : ''}`}
+              >
+                <strong>{g.playerName}:</strong> {g.guess}
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
-}
 
+}
 export default Game;

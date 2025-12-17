@@ -631,7 +631,7 @@ const initGameSocket = (io) => {
     });
 
     // sends the current leaderboard back to a client so the results page can load on refresh
-    socket.on('fetchResults', ({ roomCode } = {}, cb) => {
+    socket.on('fetchResults', async ({ roomCode } = {}, cb) => {
       const code = roomCode?.toUpperCase();
       const room = code ? rooms.get(code) : null;
 
