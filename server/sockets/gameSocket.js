@@ -315,6 +315,17 @@ const initGameSocket = (io) => {
       const name = normalizeName(playerName, 'Player');
 
       // store auth0 sub + name on socket
+      if (room.players.some(p => p.id === socket.id)) {
+        safeCallback(callback, {
+            success: true,
+            roomCode: code,
+            players: room.players,
+            hostId: room.hostId,
+            gameStarted: !!room.gameStarted,
+            round: room.round || 0,
+        });
+        return;
+      }
       socket.data.userId = playerId || null;
       socket.data.playerName = name;
       socket.data.roomCode = code;
@@ -517,6 +528,15 @@ const initGameSocket = (io) => {
         console.error('Redis update failed:', e);
       }
 
+      // check if round is over and pass as a param
+      let isGameOver;
+      const maxRounds = room.maxRounds || MAX_ROUNDS;
+      if (room.round >= maxRounds) {
+        isGameOver = true;
+      } else {
+        isGameOver = false;
+      }
+
       // 5. Broadcast round result
       io.to(code).emit('roundResult', {
         roomCode: code,
@@ -526,9 +546,9 @@ const initGameSocket = (io) => {
         playerName,
         guess: cleanGuess,
         elapsedTime: timeUsed,
+        isGameOver: isGameOver
       });
 
-      const maxRounds = room.maxRounds || MAX_ROUNDS;
 
       // CHECK IF MATCH IS OVER
       if (room.round >= maxRounds) {

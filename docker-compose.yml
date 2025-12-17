@@ -27,15 +27,12 @@ services:
       dockerfile: Dockerfile
     container_name: wordgame_server
     ports:
-      - "3000:3000"
+      - "4000:4000"
     environment:
       NODE_ENV: production
       MONGO_URI: mongodb://mongodb:27017/Word-Game-CS554
       REDIS_URL: redis://redis:6379
       # Add other necessary environment variables (e.g., Auth0, API keys)
-      GEMINI_API_KEY: "AIzaSyAsEcPo1LUrQDeFGkavGxKWUoSD7cZPDEo"
-      VITE_AUTH0_DOMAIN: dev-5155uqioibwkxl82.us.auth0.com
-      VITE_AUTH0_CLIENT_ID: OEAM37wnyjXsfcqrnXAYb4fS1bleTBh3
     depends_on:
       - mongodb
       - redis
@@ -55,7 +52,7 @@ services:
     depends_on:
       - server
     environment:
-      VITE_API_BASE_URL: http://localhost:3000
+      VITE_API_BASE_URL: http://server:4000
 
 volumes:
   mongodb_data:

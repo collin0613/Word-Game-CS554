@@ -14,6 +14,7 @@ function Game({ roomCode, playerName, hostId }) {
   const [resetSignal, setResetSignal] = useState(0);
   const [roundCount, setRoundCount] = useState(1);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [gameEndedMessage, setGameEndedMessage] = useState('');
 
   const [guessInput, setGuessInput] = useState('');
   const [bannerMessage, setBannerMessage] = useState('');
@@ -45,10 +46,9 @@ function Game({ roomCode, playerName, hostId }) {
   };
 
   // shows the winner message and pauses the round so everyone sees the result
-  const showRoundWinner = useCallback((winnerName, guess, timeUsed) => {
+  const showRoundWinner = useCallback((winnerName, guess, timeUsed, isGameOver) => {
     setIsRunning(false);
     setRoundOver(true);
-    setCountdown(5);
 
     const timeText =
       timeUsed === null || timeUsed === undefined ? '?' : String(timeUsed);
@@ -57,6 +57,11 @@ function Game({ roomCode, playerName, hostId }) {
       `Player ${winnerName} correctly guessed "${guess}" in ${timeText} seconds.`
     );
     setShowBanner(true);
+    if(isGameOver === false){
+      setCountdown(5);
+    } else {
+      setGameEndedMessage("Game over. Loading leaderboard...");
+    }
   }, []);
 
   // resets round ui and restarts the timer so the next round feels clean
@@ -186,7 +191,7 @@ function Game({ roomCode, playerName, hostId }) {
       // ignore anything that is not a correct result
       if (!data?.correct) return;
 
-      showRoundWinner(data.playerName, data.guess, data.elapsedTime);
+      showRoundWinner(data.playerName, data.guess, data.elapsedTime, data.isGameOver);
     };
 
     socket.on('roundResult', handleRoundResult);
@@ -198,6 +203,8 @@ function Game({ roomCode, playerName, hostId }) {
     if (!socket) return;
 
     const handleGameOver = (data) => {
+      setIsRunning(false);
+      setCountdown(null);
       // pass scoreboard through route state so results can render instantly
       navigate(`/game/${roomCode}/results`, {
         state: { scoreboard: data?.scoreboard || [] },
@@ -210,12 +217,17 @@ function Game({ roomCode, playerName, hostId }) {
 
   // countdown between rounds
   useEffect(() => {
+    if(gameEndedMessage.length > 0){
+      return
+    }
+
     if (countdown === null) return;
 
     if (countdown === 0) {
       setCountdown(null);
       startNewRound();
       if (socket && socket.id === hostId) requestNewRound();
+    
       return;
     }
 
@@ -274,6 +286,7 @@ function Game({ roomCode, playerName, hostId }) {
             Next round begins in {countdown}...
           </p>
         )}
+        <p className="text-2xl">{gameEndedMessage}</p>
 
         <div className="mx-auto max-w-3xl guess-chat-container mt-6 w-full">
           <h3 className="text-center">Guesses</h3>

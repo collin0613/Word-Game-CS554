@@ -6,7 +6,6 @@ import express from 'express';
 const app = express();
 import cookieParser from 'cookie-parser';
 import configRoutes from './routes/index.js';
-import middleware from './middleware.js';
 import session from 'express-session';
 
 const rewriteUnsupportedBrowserMethods = (req, res, next) => {
